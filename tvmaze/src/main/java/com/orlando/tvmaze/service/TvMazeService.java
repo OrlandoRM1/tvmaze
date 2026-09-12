@@ -2,6 +2,7 @@ package com.orlando.tvmaze.service;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.stereotype.Service;
@@ -31,6 +32,12 @@ public class TvMazeService {
 				.map(show -> new ShowResponseDto(show.getId(), show.getName(), resolveChannelName(show),
 						show.getSummary(), show.getGenres()))
 				.toList();
+	}
+
+	public Map<String, Object> getShowById(Long showId) {
+		return restClient.get().uri("/shows/{show_id}", showId).retrieve()
+				.body(new ParameterizedTypeReference<Map<String, Object>>() {
+				});
 	}
 
 	private String resolveChannelName(TvMazeSearchResponse.ShowDto show) {
