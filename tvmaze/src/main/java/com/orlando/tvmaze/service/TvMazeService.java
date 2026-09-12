@@ -3,6 +3,7 @@ package com.orlando.tvmaze.service;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.stereotype.Service;
@@ -10,13 +11,17 @@ import org.springframework.web.client.RestClient;
 
 import com.orlando.tvmaze.dto.ShowResponseDto;
 import com.orlando.tvmaze.dto.TvMazeSearchResponse;
+import com.orlando.tvmaze.entity.ShowDocument;
+import com.orlando.tvmaze.repository.ShowRepository;
 
 @Service
 public class TvMazeService {
 	private final RestClient restClient;
+	private final ShowRepository showRepository;
 
-	public TvMazeService(RestClient restClient) {
+	public TvMazeService(RestClient restClient, ShowRepository showRepository) {
 		this.restClient = restClient;
+		this.showRepository = showRepository;
 	}
 
 	public List<ShowResponseDto> searchShows(String query) {
@@ -35,9 +40,25 @@ public class TvMazeService {
 	}
 
 	public Map<String, Object> getShowById(Long showId) {
-		return restClient.get().uri("/shows/{show_id}", showId).retrieve()
+		Optional<ShowDocument> cachedShow = showRepository.findById(showId);
+		if (cachedShow.isPresent()) {
+			System.out.println("Show en Caché de MongoDB Atlas ID: " + showId);
+			return cachedShow.get().getData();
+		}
+
+		System.out.println("No existe en caché. Consumiendo API TVMaze ID: " + showId);
+		Map<String, Object> apiResponse = restClient.get().uri("/shows/{show_id}", showId).retrieve()
 				.body(new ParameterizedTypeReference<Map<String, Object>>() {
 				});
+
+		if (apiResponse != null && !apiResponse.isEmpty()) {
+			ShowDocument newShowDocument = ShowDocument.builder().id(showId).data(apiResponse).build();
+
+			showRepository.save(newShowDocument);
+			System.out.println("Show guardado en MongoDB Atlas con ID: " + showId);
+		}
+
+		return apiResponse;
 	}
 
 	private String resolveChannelName(TvMazeSearchResponse.ShowDto show) {
