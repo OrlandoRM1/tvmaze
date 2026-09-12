@@ -1,14 +1,15 @@
 package com.orlando.tvmaze.service;
 
 import java.time.LocalDateTime;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientException;
 
 import com.orlando.tvmaze.dto.CommentRequestDto;
 import com.orlando.tvmaze.dto.ShowCommentDto;
@@ -16,8 +17,8 @@ import com.orlando.tvmaze.dto.ShowResponseDto;
 import com.orlando.tvmaze.dto.TvMazeSearchResponse;
 import com.orlando.tvmaze.entity.CommentDocument;
 import com.orlando.tvmaze.entity.ShowDocument;
-import com.orlando.tvmaze.repository.ShowRepository;
 import com.orlando.tvmaze.repository.CommentRepository;
+import com.orlando.tvmaze.repository.ShowRepository;
 
 @Service
 public class TvMazeService {
@@ -33,16 +34,26 @@ public class TvMazeService {
 	}
 
 	public List<ShowResponseDto> searchShows(String query) {
-		List<TvMazeSearchResponse> rawResponse = restClient.get().uri("/search/shows?q={query}", query).retrieve()
-				.body(new ParameterizedTypeReference<List<TvMazeSearchResponse>>() {
-				});
+		List<TvMazeSearchResponse> rawResponse;
 
-		if (rawResponse == null) {
-			return Collections.emptyList();
+		try {
+			rawResponse = restClient.get().uri("/search/shows?q={query}", query).retrieve()
+					.body(new ParameterizedTypeReference<List<TvMazeSearchResponse>>() {
+					});
+		} catch (HttpClientErrorException.NotFound e) {
+			throw new java.util.NoSuchElementException(
+					"No se encontraron series que coincidan con la búsqueda: '" + query + "'");
+		} catch (RestClientException e) {
+			throw new java.util.NoSuchElementException(
+					"Error al consultar el servicio de TVMaze para la búsqueda: '" + query + "'");
+		}
+
+		if (rawResponse == null || rawResponse.isEmpty()) {
+			throw new java.util.NoSuchElementException(
+					"No se encontraron series que coincidan con la búsqueda: '" + query + "'");
 		}
 
 		return rawResponse.stream().map(TvMazeSearchResponse::getShow).filter(show -> show != null).map(show -> {
-			// Obtener comentarios guardados en MongoDB para este showId
 			List<ShowCommentDto> comments = commentRepository.findByShowId(show.getId()).stream()
 					.map(c -> new ShowCommentDto(c.getComment(), c.getRating())).toList();
 
