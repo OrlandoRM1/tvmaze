@@ -11,6 +11,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
 
 import com.orlando.tvmaze.dto.CommentRequestDto;
+import com.orlando.tvmaze.dto.ShowCommentDto;
 import com.orlando.tvmaze.dto.ShowResponseDto;
 import com.orlando.tvmaze.dto.TvMazeSearchResponse;
 import com.orlando.tvmaze.entity.CommentDocument;
@@ -40,10 +41,14 @@ public class TvMazeService {
 			return Collections.emptyList();
 		}
 
-		return rawResponse.stream().map(TvMazeSearchResponse::getShow).filter(show -> show != null)
-				.map(show -> new ShowResponseDto(show.getId(), show.getName(), resolveChannelName(show),
-						show.getSummary(), show.getGenres()))
-				.toList();
+		return rawResponse.stream().map(TvMazeSearchResponse::getShow).filter(show -> show != null).map(show -> {
+			// Obtener comentarios guardados en MongoDB para este showId
+			List<ShowCommentDto> comments = commentRepository.findByShowId(show.getId()).stream()
+					.map(c -> new ShowCommentDto(c.getComment(), c.getRating())).toList();
+
+			return new ShowResponseDto(show.getId(), show.getName(), resolveChannelName(show), show.getSummary(),
+					show.getGenres(), comments);
+		}).toList();
 	}
 
 	public Map<String, Object> getShowById(Long showId) {
