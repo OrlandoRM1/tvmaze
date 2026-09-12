@@ -52,25 +52,35 @@ public class TvMazeService {
 	}
 
 	public Map<String, Object> getShowById(Long showId) {
+		Map<String, Object> showData;
+
 		Optional<ShowDocument> cachedShow = showRepository.findById(showId);
+
 		if (cachedShow.isPresent()) {
 			System.out.println("Show en Caché de MongoDB Atlas ID: " + showId);
-			return cachedShow.get().getData();
+			showData = cachedShow.get().getData();
+		} else {
+			System.out.println("No existe en caché. Consumiendo API TVMaze ID: " + showId);
+			showData = restClient.get().uri("/shows/{show_id}", showId).retrieve()
+					.body(new ParameterizedTypeReference<Map<String, Object>>() {
+					});
+
+			if (showData != null && !showData.isEmpty()) {
+				ShowDocument newShowDocument = ShowDocument.builder().id(showId).data(showData).build();
+
+				showRepository.save(newShowDocument);
+				System.out.println("Show guardado en MongoDB Atlas con ID: " + showId);
+			}
 		}
 
-		System.out.println("No existe en caché. Consumiendo API TVMaze ID: " + showId);
-		Map<String, Object> apiResponse = restClient.get().uri("/shows/{show_id}", showId).retrieve()
-				.body(new ParameterizedTypeReference<Map<String, Object>>() {
-				});
+		if (showData != null) {
+			List<ShowCommentDto> comments = commentRepository.findByShowId(showId).stream()
+					.map(c -> new ShowCommentDto(c.getComment(), c.getRating())).toList();
 
-		if (apiResponse != null && !apiResponse.isEmpty()) {
-			ShowDocument newShowDocument = ShowDocument.builder().id(showId).data(apiResponse).build();
-
-			showRepository.save(newShowDocument);
-			System.out.println("Show guardado en MongoDB Atlas con ID: " + showId);
+			showData.put("comments", comments);
 		}
 
-		return apiResponse;
+		return showData;
 	}
 
 	public void saveComment(Long showId, CommentRequestDto dto) {
