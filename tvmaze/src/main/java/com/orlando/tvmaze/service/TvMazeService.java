@@ -1,5 +1,6 @@
 package com.orlando.tvmaze.service;
 
+import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -9,19 +10,25 @@ import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
 
+import com.orlando.tvmaze.dto.CommentRequestDto;
 import com.orlando.tvmaze.dto.ShowResponseDto;
 import com.orlando.tvmaze.dto.TvMazeSearchResponse;
+import com.orlando.tvmaze.entity.CommentDocument;
 import com.orlando.tvmaze.entity.ShowDocument;
 import com.orlando.tvmaze.repository.ShowRepository;
+import com.orlando.tvmaze.repository.CommentRepository;
 
 @Service
 public class TvMazeService {
+
 	private final RestClient restClient;
 	private final ShowRepository showRepository;
+	private final CommentRepository commentRepository;
 
-	public TvMazeService(RestClient restClient, ShowRepository showRepository) {
+	public TvMazeService(RestClient restClient, ShowRepository showRepository, CommentRepository commentRepository) {
 		this.restClient = restClient;
 		this.showRepository = showRepository;
+		this.commentRepository = commentRepository;
 	}
 
 	public List<ShowResponseDto> searchShows(String query) {
@@ -59,6 +66,17 @@ public class TvMazeService {
 		}
 
 		return apiResponse;
+	}
+
+	public void saveComment(Long showId, CommentRequestDto dto) {
+		if (dto.getRating() == null || dto.getRating() < 0 || dto.getRating() > 5) {
+			throw new IllegalArgumentException("La calificacion (rating) debe ser un valor numérico entre 0 y 5.");
+		}
+
+		CommentDocument commentDocument = CommentDocument.builder().showId(showId).comment(dto.getComment())
+				.rating(dto.getRating()).createdAt(LocalDateTime.now()).build();
+
+		commentRepository.save(commentDocument);
 	}
 
 	private String resolveChannelName(TvMazeSearchResponse.ShowDto show) {
